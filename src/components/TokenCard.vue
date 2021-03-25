@@ -3,7 +3,6 @@
     <Icon
       :type="ICON_TYPE.auto"
       :icon="tokenImage"
-      :broken="failTookenImage"
       @click="onSelected"
     />
     <div @click="onSelected">
@@ -49,10 +48,12 @@
 </template>
 
 <script>
-import { API, DEFAULT_TOKEN } from 'config'
+import { DEFAULT_TOKEN } from 'config'
+import { toBech32Address } from '@zilliqa-js/crypto/dist/bech32'
 
 import { mapState } from 'vuex'
 import settingsStore from '@/store/settings'
+import uiStore from '@/store/ui'
 
 import {
   FONT_VARIANTS,
@@ -68,6 +69,7 @@ import P from '@/components/P'
 import SvgInject from '@/components/SvgInject'
 import Icon from '@/components/Icon'
 
+import { getTokenImage } from '@/utils'
 import { toConversion, fromZil, toLocaleString } from '@/filters'
 
 export default {
@@ -88,6 +90,9 @@ export default {
       type: [Number, String],
       required: true
     },
+    address: {
+      type: String
+    },
     balance: {
       type: String,
       required: true
@@ -107,27 +112,35 @@ export default {
       ICON_VARIANTS,
       ICON_TYPE,
       SIZE_VARIANS,
-      API,
       DEFAULT_TOKEN,
       COLOR_VARIANTS
     }
   },
   computed: {
+    ...mapState(uiStore.STORE_NAME, [
+      uiStore.STATE_NAMES.selectedTheme
+    ]),
     ...mapState(settingsStore.STORE_NAME, [
       settingsStore.STATE_NAMES.currency,
       settingsStore.STATE_NAMES.currentCurrency,
       settingsStore.STATE_NAMES.currentRate
     ]),
 
+    isDark() {
+      return this.selectedTheme === 'dark'
+    },
     tokenImage() {
-      if (this.symbol.includes('gzil')) {
-        return `${this.API.ZRC2_API}/gZIL.${ICON_TYPE.svg}`
+      if (this.symbol === DEFAULT_TOKEN.symbol) {
+        return getTokenImage(this.symbol, this.isDark)
       }
 
-      return `${this.API.ZRC2_API}/${this.symbol}.${ICON_TYPE.svg}`
-    },
-    failTookenImage() {
-      return `/icons/${ICON_VARIANTS.generic}.${ICON_TYPE.svg}`
+      try {
+        const bech32 = toBech32Address(this.address)
+
+        return getTokenImage(bech32, this.isDark)
+      } catch {
+        return getTokenImage(this.address, this.isDark)
+      }
     },
     tokenCurrency() {
       if (this.symbol === DEFAULT_TOKEN.symbol) {

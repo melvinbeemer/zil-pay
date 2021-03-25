@@ -6,7 +6,7 @@
  * -----
  * Copyright (c) 2019 ZilPay
  */
-import { API, FIELDS, DEFAULT, DEFAULT_TOKEN } from 'config'
+import { API, FIELDS, DEFAULT_TOKEN } from 'config'
 
 import {
   ZilliqaControl,
@@ -81,14 +81,13 @@ export class Transaction {
       return null
     }
 
+    await networkControl.netwrokSync()
     const storage = new BrowserStorage()
     const hasPool = block.TxHashes.flat()
-    const data = await storage.get([
-      FIELDS.TRANSACTIONS,
-      FIELDS.SELECTED_NET
-    ])
-    const selectednet = data[FIELDS.SELECTED_NET]
-    const transactions = data[FIELDS.TRANSACTIONS]
+    const transactions = await storage.get(
+      FIELDS.TRANSACTIONS
+    )
+    const selectednet = networkControl.selected
     const addresses = Object.keys(transactions)
 
     for (let index = 0; index < addresses.length; index++) {
@@ -108,8 +107,9 @@ export class Transaction {
           }
 
           if (hasPool.includes(hash)) {
-            Transaction.makeNotificationConfirm(tx)
             tx.confirmed = true
+            tx.Info = 'Confirmed'
+            Transaction.makeNotification(tx)
           }
 
           return tx
@@ -124,18 +124,10 @@ export class Transaction {
     )
   }
 
-  static makeNotificationReject(tx, msg) {
+  static makeNotification(tx) {
     new NotificationsControl({
       url: `${API.EXPLORER}/tx/0x${tx.TranID}?network=${networkControl.selected}`,
-      title: 'ZilPay rejected',
-      message: msg
-    }).create()
-  }
-
-  static makeNotificationConfirm(tx) {
-    new NotificationsControl({
-      url: `${API.EXPLORER}/tx/0x${tx.TranID}?network=${networkControl.selected}`,
-      title: 'ZilPay confirmed',
+      title: 'ZilPay',
       message: tx.Info
     }).create()
   }
@@ -154,61 +146,72 @@ export class Transaction {
     const zilliqaControl = new ZilliqaControl(networkControl.provider)
     const data = await this.storage.get([
       FIELDS.TRANSACTIONS,
-      FIELDS.WALLET,
-      FIELDS.SELECTED_NET
+      FIELDS.WALLET
     ])
+    const wallet = data[FIELDS.WALLET]
+    const net = networkControl.selected
+    const selectedAccount = wallet.identities[wallet.selectedAddress]
+    let transactions = data[FIELDS.TRANSACTIONS]
+    let rejectQueue = false
+
+    if (!transactions || Object.keys(transactions).length === 0) {
+      return null
+    }
 
     try {
-      let transactions = data[FIELDS.TRANSACTIONS]
-      const wallet = data[FIELDS.WALLET]
-      const net = data[FIELDS.SELECTED_NET]
-      const selectedAccount = wallet.identities[wallet.selectedAddress]
       const currentTransaction = transactions[selectedAccount.address][net]
-      const time = 200
 
       // If hasn't not confirmed tx.
-      if (!currentTransaction.some((tx) => !tx.confirmed)) {
+      if (!currentTransaction || !currentTransaction.some((tx) => !tx.confirmed)) {
         return null
       }
 
       const checkList = currentTransaction.map(async(tx) => {
         if (tx.confirmed) {
           return tx
-        } else if (tx.timestamp && (new Date().getTime() - new Date(tx.timestamp).getTime()) < time) {
+        } else if (rejectQueue) {
+          tx.Info = 'Queue rejected'
+          tx.error = true
+          tx.nonce = 0
+          tx.confirmed = true
+
+          Transaction.makeNotification(tx)
+
           return tx
         }
 
         try {
-          const result = await zilliqaControl.blockchain.getPendingTxn(tx.TranID)
-          const blockForskel = Number(socketControl.blockNumber) - Number(tx.block)
-          let block = tx.block
-          let error = null
+          const result = await zilliqaControl.blockchain.getTransactionStatus(tx.TranID)
 
-          if (result.code === 0 && result.confirmed) {
-            Transaction.makeNotificationConfirm(tx)
-
-            block = socketControl.blockNumber
+          switch (result.status) {
+          case 1:
+            return tx
+          case 2:
+            tx.Info = result.statusMessage
+            tx.block = result.epochUpdated
             tx.confirmed = true
-          } else if (!result.confirmed && blockForskel >= DEFAULT.DS_PER_TX_BLOCKS) {
-            Transaction.makeNotificationReject(tx, result.info)
 
-            tx.Info = result.info
-            error = true
-            tx.confirmed = true
-          } else if (result.code !== 0) {
-            Transaction.makeNotificationReject(tx, result.info)
+            Transaction.makeNotification(tx)
+            return tx
+          case 3:
+            tx.Info = result.statusMessage
+            tx.block = result.epochUpdated
+            tx.confirmed = result.success
 
-            tx.Info = result.info
-            error = true
+            Transaction.makeNotification(tx)
+
+            return tx
+          default:
+            rejectQueue = true
+            tx.Info = result.statusMessage
+            tx.error = true
             tx.confirmed = true
+            tx.nonce = 0
+            Transaction.makeNotification(tx)
+
+            return tx
           }
-
-          return {
-            ...tx,
-            block,
-            error
-          }
-        } catch {
+        } catch (err) {
           return tx
         }
       })
@@ -220,6 +223,7 @@ export class Transaction {
         new BuildObject(FIELDS.TRANSACTIONS, transactions)
       )
     } catch (err) {
+      console.log(err)
       return null
     }
   }

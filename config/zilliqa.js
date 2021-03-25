@@ -29,6 +29,7 @@ export const ZIL_SWAP_CONTRACTS = {
   [Object.keys(ZILLIQA)[1]]: '0x1a62Dd9C84b0C8948cb51FC664ba143e7A34985c'
 }
 export const SSN_ADDRESS = '0xB780e8095b8BA85A7145965ed632b3B774ac51cE'
+export const SCAM_TOKEN = '0xe66593414Ba537e965b5e0eB723a58b4d1fACc89'
 
 /**
  * Default tokens will add to tokens list, this token cannot remove.
@@ -40,11 +41,7 @@ export const DEFAULT_TOKENS_LIST = {
     '0xa845C1034CD077bD8D32be0447239c7E4be6cb21',
     '0x0D21C1901A06aBEE40d8177F95171c8c63AbdC31'
   ],
-  [Object.keys(ZILLIQA)[1]]: [
-    '0x7b949726966b80c93542233531f9bd53542d4514',
-    '0x7f4a28aabde4cca04b5529eacb64b1449b317e7f',
-    '0x6f0B1fbDA199dc4AbFda28fa2eaa299599b3e8F2'
-  ]
+  [Object.keys(ZILLIQA)[1]]: []
 }
 
 export const DEFAULT_GAS_FEE = {

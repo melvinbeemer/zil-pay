@@ -15,6 +15,7 @@
             :balance="t.balance"
             :name="t.name"
             :symbol="t.symbol"
+            :address="t.address"
             :decimals="t.decimals"
             :selected="t.symbol === selectedcoin"
             :defaultToken="t.default"
@@ -53,7 +54,6 @@
         <Icon
           :type="ICON_TYPE.auto"
           :icon="tokenImage(tokenToRemove)"
-          :broken="failTookenImage()"
         />
         <P
           :font="FONT_VARIANTS.bold"
@@ -77,6 +77,8 @@
 </template>
 
 <script>
+import { DEFAULT_TOKEN } from 'config'
+import { toBech32Address } from '@zilliqa-js/crypto/dist/bech32'
 import { mapState, mapActions, mapGetters, mapMutations } from 'vuex'
 import uiStore from '@/store/ui'
 import tokenStore from '@/store/token'
@@ -103,6 +105,8 @@ import TokenCreater from '@/components/TokenCreater'
 import BottomModal from '@/components/BottomModal'
 import BackModal from '@/components/BackModal'
 import Tabs from '@/components/Tabs'
+
+import { getTokenImage } from '@/utils'
 
 export default {
   name: 'Tokens',
@@ -135,7 +139,8 @@ export default {
   },
   computed: {
     ...mapState(uiStore.STORE_NAME, [
-      uiStore.STATE_NAMES.local
+      uiStore.STATE_NAMES.local,
+      uiStore.STATE_NAMES.selectedTheme
     ]),
     ...mapState(tokenStore.STORE_NAME, [
       tokenStore.STATE_NAMES.selectedcoin
@@ -147,6 +152,9 @@ export default {
       settingsStore.STATE_NAMES.currentRate
     ]),
 
+    isDark() {
+      return this.selectedTheme === 'dark'
+    },
     tabsElements() {
       return [
         {
@@ -179,10 +187,17 @@ export default {
       this.removeModal = true
     },
     tokenImage(token) {
-      return `${this.API.ZRC2_API}/${token.symbol}.png`.toLowerCase()
-    },
-    failTookenImage() {
-      return `${this.API.ZRC2_API}/generic.png`
+      if (token.symbol === DEFAULT_TOKEN.symbol) {
+        return getTokenImage(token.symbol, this.isDark)
+      }
+
+      try {
+        const bech32 = toBech32Address(token.address)
+
+        return getTokenImage(bech32, this.isDark)
+      } catch {
+        return getTokenImage(token.address, this.isDark)
+      }
     },
     async onEvent(event) {
       switch (event) {
@@ -199,7 +214,7 @@ export default {
         break
       }
     }
-  },
+  }
 }
 </script>
 
